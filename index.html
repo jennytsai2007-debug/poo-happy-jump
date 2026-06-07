@@ -1,0 +1,2211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Happy Jump! 快樂萌友跳躍：試算表對接版</title>
+    <!-- 引入 Tailwind CSS 用於高階 UI 排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 FontAwesome 經典圖示庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google 萌系字型：Fredoka -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Fredoka', 'Microsoft JhengHei', sans-serif;
+            background: radial-gradient(circle at center, #111827, #030712);
+            touch-action: none;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* 霧面玻璃擬態質感 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .glass-panel-dark {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        /* 呼吸發光效果 */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+            50% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.8); }
+        }
+        .active-glow {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        /* 溫和懸浮飄動動效 */
+        @keyframes gentle-bob {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .bobbing-element {
+            animation: gentle-bob 3s infinite ease-in-out;
+        }
+
+        /* 錯誤晃動特效 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .animate-shake {
+            animation: shake 0.3s ease-in-out;
+        }
+        
+        canvas {
+            image-rendering: auto;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-0 m-0">
+
+    <!-- 遊戲主容器：模擬高端智慧型手機視窗 -->
+    <div class="relative w-full max-w-[480px] h-screen max-h-[850px] md:h-[92vh] md:rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col border border-slate-800 bg-[#0a0f1d]">
+        
+        <!-- 頂部 HUD 資訊 -->
+        <div id="hud" class="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-10 pointer-events-none transition-all duration-500 transform -translate-y-full opacity-0">
+            <!-- 左側：高度與金幣 -->
+            <div class="flex flex-col gap-2">
+                <div class="bg-black/45 backdrop-blur-xl text-white px-4 py-2 rounded-2xl flex items-center gap-2.5 text-sm font-bold border border-white/10 shadow-lg">
+                    <i class="fa-solid fa-cloud-arrow-up text-sky-300 text-base animate-bounce"></i>
+                    <span>高度: <span id="hud-score" class="text-sky-300 text-lg font-extrabold">0</span> <span class="text-xs text-slate-300">m</span></span>
+                </div>
+                <div class="bg-black/45 backdrop-blur-xl text-white px-4 py-1.5 rounded-2xl flex items-center gap-2 text-sm font-bold border border-white/10 shadow-lg w-fit">
+                    <i class="fa-solid fa-coins text-amber-400 text-base"></i>
+                    <span id="hud-coins" class="text-amber-300 text-base">0</span>
+                </div>
+            </div>
+            
+            <!-- 右側：控制按鈕 -->
+            <div class="flex gap-2.5 pointer-events-auto">
+                <button id="btn-sound" class="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/10 shadow-lg transition duration-200 active:scale-90" title="靜音開關">
+                    <i id="sound-icon" class="fa-solid fa-volume-high text-lg"></i>
+                </button>
+                <button id="btn-pause" class="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/10 shadow-lg transition duration-200 active:scale-90" title="暫停遊戲">
+                    <i class="fa-solid fa-pause text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 遊戲畫布 -->
+        <canvas id="gameCanvas" class="w-full h-full block bg-[#0a0f1d]"></canvas>
+
+        <!-- 登入與註冊畫面 -->
+        <div id="login-screen" class="absolute inset-0 z-40 flex flex-col justify-center p-6 bg-gradient-to-b from-slate-950 via-[#0d1527] to-slate-950 text-center transition-all duration-500">
+            <!-- 頂部齒輪：GAS 設定按鈕 -->
+            <button id="btn-gas-settings" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center transition shadow-md z-50" title="後端 GAS 試算表設定">
+                <i class="fa-solid fa-gear text-lg"></i>
+            </button>
+
+            <div class="w-full max-w-sm mx-auto flex flex-col items-center">
+                <!-- 遊戲標題 -->
+                <div class="bobbing-element mb-6 text-center">
+                    <h1 class="text-4xl font-extrabold text-[#38BDF8] tracking-wider uppercase drop-shadow-[0_4px_0_#0369A1] font-['Fredoka']">
+                        Poo & Friends
+                    </h1>
+                    <p class="text-amber-300 font-bold tracking-widest text-xs mt-1">試算表極致萌友版 🚀✨</p>
+                </div>
+
+                <!-- 登入卡片 -->
+                <div class="w-full glass-panel rounded-3xl p-6 border border-white/10 shadow-2xl">
+                    <!-- 切換分頁 -->
+                    <div class="flex border-b border-white/10 pb-3 mb-5">
+                        <button id="tab-login" class="flex-1 pb-2 text-white font-bold text-sm border-b-2 border-sky-400 transition">登入帳號</button>
+                        <button id="tab-register" class="flex-1 pb-2 text-slate-400 font-bold text-sm border-b-2 border-transparent hover:text-white transition">註冊玩家</button>
+                    </div>
+
+                    <!-- 輸入欄位組 -->
+                    <div class="space-y-4">
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                                <i class="fa-solid fa-user"></i>
+                            </span>
+                            <input type="text" id="auth-username" placeholder="玩家帳號 (最少 4 字元)" class="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-sky-400 transition" autocomplete="off">
+                        </div>
+
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                                <i class="fa-solid fa-lock"></i>
+                            </span>
+                            <input type="password" id="auth-password" placeholder="密碼 (最少 6 字元)" class="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-sky-400 transition">
+                        </div>
+                    </div>
+
+                    <!-- 提交按鈕 -->
+                    <button id="btn-auth-submit" class="w-full mt-6 py-3.5 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-right-to-bracket"></i> <span id="auth-btn-text">登入並開啟冒險</span>
+                    </button>
+                </div>
+
+                <!-- 訪客/快速模式 -->
+                <div class="mt-6 w-full flex flex-col items-center gap-2">
+                    <div class="flex items-center w-full gap-2 text-slate-600 text-xs px-4">
+                        <hr class="flex-1 border-slate-800">
+                        <span>或者</span>
+                        <hr class="flex-1 border-slate-800">
+                    </div>
+                    
+                    <button id="btn-auth-guest" class="w-full mt-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-bold text-sm rounded-2xl active:scale-95 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user-secret"></i> 訪客直接試玩 (即時本機存檔)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GAS 後端連接設定 Modal -->
+        <div id="gas-modal" class="absolute inset-0 z-50 hidden flex-col justify-center items-center p-6 bg-black/85 backdrop-blur-md">
+            <div class="glass-panel w-full max-w-sm rounded-3xl p-6 border border-white/15 shadow-2xl text-left">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-server text-sky-400 mr-2"></i>Google 試算表設定</h3>
+                    <button id="btn-gas-close" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                
+                <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+                    請填入您部署的 <strong>Google Apps Script 網頁應用程式 URL</strong>。設定成功後，系統將直接從您的試算表中同步玩家資料！
+                </p>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">GAS Web App URL</label>
+                        <textarea id="gas-url-input" rows="3" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-3 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-600 focus:outline-none focus:border-sky-400 transition resize-none"></textarea>
+                    </div>
+
+                    <!-- 狀態顯示 -->
+                    <div id="gas-status" class="bg-slate-900/50 rounded-xl p-2.5 border border-white/5 text-[11px] text-slate-400 flex items-center justify-between">
+                        <span>連線狀態:</span>
+                        <span id="gas-status-badge" class="font-bold text-amber-400">未測試/未連接 ⚪</span>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button id="btn-gas-test" class="flex-1 py-2.5 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-bold rounded-xl active:scale-95 transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-wave-square"></i> 測試並儲存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主選單畫面 -->
+        <div id="start-screen" class="absolute inset-0 z-20 hidden flex-col justify-between p-8 bg-gradient-to-b from-slate-950 via-[#0d1527]/98 to-slate-950 text-center transition-all duration-500">
+            <div class="my-auto flex flex-col items-center w-full">
+                <!-- 帳號與登出標籤 -->
+                <div class="flex items-center gap-2 mb-4 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full text-xs text-slate-300 shadow-inner">
+                    <span id="player-name-tag">載入玩家中...</span>
+                    <button id="btn-logout" class="text-rose-400 hover:text-rose-300 font-bold ml-1 flex items-center gap-1" title="登出切換帳號">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i> 登出
+                    </button>
+                </div>
+
+                <!-- 遊戲大標題 -->
+                <div class="bobbing-element mb-2">
+                    <h1 class="text-5xl font-extrabold text-[#38BDF8] tracking-wider uppercase select-none drop-shadow-[0_6px_0_#0369A1] font-['Fredoka']">
+                        Poo & Friends
+                    </h1>
+                    <p class="text-amber-300 font-bold tracking-widest text-sm mt-2">萌友璀璨大冒險 🚀✨</p>
+                </div>
+
+                <!-- 預覽主視覺：動態角色展示 -->
+                <div class="w-40 h-40 my-6 relative flex items-center justify-center">
+                    <div class="absolute inset-0 bg-sky-400/10 rounded-full filter blur-xl animate-pulse"></div>
+                    <div id="hero-preview-container" class="relative z-10 w-32 h-32 flex items-center justify-center">
+                        <!-- 動態載入目前選取角色的 SVG -->
+                    </div>
+                </div>
+
+                <!-- 歷史最高紀錄卡片 -->
+                <div class="glass-panel rounded-2xl px-6 py-3 w-64 mb-8">
+                    <span class="text-xs text-slate-300 font-semibold block tracking-wider uppercase mb-1">歷史最高紀錄</span>
+                    <span class="text-2xl font-black text-amber-300 font-sans" id="high-score-val">0 m</span>
+                </div>
+
+                <!-- 按鈕群 -->
+                <div class="flex flex-col gap-4 w-64">
+                    <button id="btn-play" class="w-full py-4 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-black text-xl rounded-2xl shadow-[0_6px_0_#0369A1] hover:shadow-[0_4px_0_#0369A1] active:translate-y-[4px] active:shadow-none transition-all duration-100 flex items-center justify-center gap-2 tracking-wider">
+                        <i class="fa-solid fa-play text-lg"></i> 開 始 冒 險
+                    </button>
+                    
+                    <button id="btn-shop-toggle" class="w-full py-3.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold text-lg rounded-2xl shadow-[0_6px_0_#9a3412] hover:shadow-[0_4px_0_#9a3412] active:translate-y-[4px] active:shadow-none transition-all duration-100 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user-gear text-base"></i> 角色變更與商店 (<span id="start-total-coins">0</span>)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 控制說明 -->
+            <div class="text-xs text-slate-400/80 bg-white/5 rounded-xl p-3 border border-white/5">
+                電腦：按 A / D、左右方向鍵 或滑鼠拖曳。<br>手機：左右滑動螢幕即可操控角色移動。
+            </div>
+        </div>
+
+        <!-- 角色商店面版 -->
+        <div id="shop-screen" class="absolute inset-0 z-30 hidden flex-col bg-slate-950 p-6 transition-all duration-300">
+            <!-- 頂部返回與標題 -->
+            <div class="flex justify-between items-center mb-6">
+                <button id="btn-shop-back" class="w-11 h-11 rounded-2xl bg-white/5 text-white flex items-center justify-center border border-white/10 shadow-md active:scale-95 transition hover:bg-white/10">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <h2 class="text-2xl font-black text-white tracking-wide">萌友角色選擇 🎨</h2>
+                <!-- 金幣餘額 -->
+                <div class="bg-amber-400/10 border border-amber-400/30 text-amber-300 px-4 py-1.5 rounded-2xl flex items-center gap-1.5 text-sm font-black shadow-inner">
+                    <i class="fa-solid fa-coins text-amber-400"></i>
+                    <span id="shop-coins-val">0</span>
+                </div>
+            </div>
+
+            <!-- 角色列表滾動區 -->
+            <div class="flex-1 overflow-y-auto pr-1 space-y-4" id="skin-list-container">
+                <!-- 角色項目由 JavaScript 生成 -->
+            </div>
+
+            <div class="text-center mt-4 text-xs text-slate-500">
+                在冒險中拾取金幣！跳得越高，獎勵越多！
+            </div>
+        </div>
+
+        <!-- 暫停畫面 -->
+        <div id="pause-screen" class="absolute inset-0 z-20 hidden flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 text-center">
+            <div class="glass-panel rounded-3xl p-8 max-w-[280px] w-full flex flex-col gap-5 border border-white/20">
+                <h2 class="text-3xl font-black text-white tracking-widest mb-2">暫 停</h2>
+                <button id="btn-resume" class="py-3 bg-gradient-to-r from-sky-400 to-blue-500 text-white font-bold text-lg rounded-2xl shadow-lg transition active:scale-95">
+                    繼續冒險
+                </button>
+                <button id="btn-restart-pause" class="py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold text-lg rounded-2xl shadow-lg transition active:scale-95">
+                    重新開始
+                </button>
+                <button id="btn-home-pause" class="py-3 bg-slate-600 hover:bg-slate-700 text-white font-bold text-lg rounded-2xl shadow-lg transition active:scale-95">
+                    返回主選單
+                </button>
+            </div>
+        </div>
+
+        <!-- 遊戲結束畫面 -->
+        <div id="gameover-screen" class="absolute inset-0 z-20 hidden flex-col items-center justify-center bg-gradient-to-b from-slate-950 to-slate-900 p-6 text-center transition-all duration-500">
+            <div class="bobbing-element mb-6">
+                <span class="text-7xl drop-shadow-xl inline-block">💫</span>
+                <h2 class="text-4xl font-extrabold text-rose-400 mt-4 tracking-wide drop-shadow-md">降落失敗！</h2>
+                <p class="text-slate-300 text-sm mt-1">飛得更高，才能看見浩瀚星空！</p>
+            </div>
+
+            <!-- 高級質感結算看板 -->
+            <div class="glass-panel rounded-3xl p-6 w-80 mb-8 flex flex-col gap-4 border border-white/10">
+                <div>
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-widest">本次飛行高度</span>
+                    <div class="text-4xl font-black text-amber-300 font-sans mt-1" id="go-score">0 m</div>
+                    <!-- 新紀錄特殊徽章 -->
+                    <span id="new-best-badge" class="hidden inline-block mt-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full animate-pulse">NEW BEST! 突破極限</span>
+                </div>
+                
+                <hr class="border-white/10">
+                
+                <div class="flex justify-between items-center px-2">
+                    <span class="text-sm text-slate-300 font-semibold">本次獲得金幣</span>
+                    <span class="text-base font-bold text-amber-400 flex items-center gap-1">
+                        <i class="fa-solid fa-coins"></i> +<span id="go-coins-earned">0</span>
+                    </span>
+                </div>
+                <div class="flex justify-between items-center px-2">
+                    <span class="text-sm text-slate-300 font-semibold">歷史最高紀錄</span>
+                    <span class="text-base font-bold text-sky-300"><span id="go-high-score">0</span> m</span>
+                </div>
+            </div>
+
+            <!-- 按鈕組 -->
+            <div class="flex flex-col gap-4 w-64">
+                <button id="btn-restart" class="w-full py-4 bg-gradient-to-r from-sky-400 to-blue-500 text-white font-black text-lg rounded-2xl shadow-[0_6px_0_#0369A1] hover:shadow-[0_4px_0_#0369A1] active:translate-y-[4px] active:shadow-none transition-all duration-100 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-right"></i> 再試一次！
+                </button>
+                <button id="btn-home" class="w-full py-3 bg-slate-700 text-white font-bold text-md rounded-2xl shadow-[0_6px_0_#334155] hover:shadow-[0_4px_0_#334155] active:translate-y-[4px] active:shadow-none transition-all duration-100 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-house"></i> 返回主選單
+                </button>
+            </div>
+        </div>
+
+        <!-- 內建全域提示彈窗 -->
+        <div id="custom-toast" class="absolute bottom-6 left-6 right-6 z-50 transform translate-y-20 opacity-0 bg-sky-500/90 text-white font-bold text-xs p-3.5 rounded-2xl flex items-center justify-center gap-2 border border-white/20 shadow-xl transition-all duration-300 pointer-events-none">
+            <i class="fa-solid fa-circle-info"></i>
+            <span id="toast-message">載入中...</span>
+        </div>
+
+        <!-- 雲端保存提示動畫 -->
+        <div id="cloud-sync-status" class="absolute top-4 left-4 z-50 opacity-0 bg-emerald-500/90 text-white text-[10px] font-black px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md transition-all duration-300 pointer-events-none">
+            <i class="fa-solid fa-cloud-arrow-up animate-pulse"></i>
+            <span>試算表同步中... 🟢</span>
+        </div>
+
+    </div>
+
+    <!-- 遊戲主體與 Google Apps Script (GAS) 溝通引擎 -->
+    <script>
+        // 全局進度與狀態安全物件
+        window.gameProgress = {
+            ownedSkins: ['classic'],
+            activeSkinId: 'classic',
+            totalCoins: 0,
+            highScore: 0,
+            currentLocalUsername: "Guest",
+            currentLocalPassword: "" // 用於背景同步時驗證身分
+        };
+
+        // GAS 後端設定儲存槽 - 此處已預填您所部署的 Google Apps Script 網頁應用程式 URL！
+        let GAS_URL = localStorage.getItem('gas_web_app_url') || "https://script.google.com/macros/s/AKfycbxu4hgMxEw_R2tARgC7eJaoByiMEHcuwnJbV_WMYB38Lv_AEVlAZ0GDA6ZyZwADkl-j/exec";
+
+        // 繪製圓角平台
+        function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+            if (width < 2 * radius) radius = width / 2;
+            if (height < 2 * radius) radius = height / 2;
+            ctx.moveTo(x + radius, y);
+            ctx.arcTo(x + width, y, x + width, y + height, radius);
+            ctx.arcTo(x + width, y + height, x, y + height, radius);
+            ctx.arcTo(x, y + height, x, y, radius);
+            ctx.arcTo(x, y, x + width, y, radius);
+            ctx.closePath();
+        }
+
+        // --- Web Audio API 8-Bit 復古音效合成器 ---
+        class SoundSynth {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playJump() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'triangle'; 
+                osc.frequency.setValueAtTime(170, now);
+                osc.frequency.exponentialRampToValueAtTime(520, now + 0.12);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.13);
+            }
+
+            playCoin() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, now); 
+                osc.frequency.setValueAtTime(1318.51, now + 0.07); 
+                
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.setValueAtTime(0.12, now + 0.07);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.22);
+            }
+
+            playSpring() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(220, now);
+                for (let i = 0; i < 8; i++) {
+                    osc.frequency.linearRampToValueAtTime(300 + (i * 70), now + (i * 0.03));
+                    osc.frequency.linearRampToValueAtTime(200 + (i * 70), now + (i * 0.03) + 0.015);
+                }
+                
+                gain.gain.setValueAtTime(0.22, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.28);
+            }
+
+            playBalloon() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(950, now + 0.42);
+                
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.42);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.42);
+            }
+
+            playBreak() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.16);
+                
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.16);
+            }
+
+            playGameOver() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(290, now);
+                osc.frequency.linearRampToValueAtTime(140, now + 0.28);
+                osc.frequency.linearRampToValueAtTime(80, now + 0.7);
+                
+                gain.gain.setValueAtTime(0.22, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.75);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.75);
+            }
+        }
+
+        const sounds = new SoundSynth();
+
+        // 5 款完全不同的超萌角色與造型參數
+        const SKINS = [
+            { 
+                id: 'classic', 
+                name: '經典便便 💩', 
+                type: 'poo', 
+                price: 0, 
+                desc: '元祖級主角，Q彈靈活！', 
+                colorGrad: ['#CD853F', '#8B4513'], 
+                outlineColor: '#4A2711', 
+                cheeks: '#FFB6C1' 
+            },
+            { 
+                id: 'slime', 
+                name: '軟Q史萊姆 💧', 
+                type: 'slime', 
+                price: 30, 
+                desc: '半透明水滴身軀，極致拉伸！', 
+                colorGrad: ['#38BDF8', '#0284C7'], 
+                outlineColor: '#0369A1', 
+                cheeks: '#FFB6C1' 
+            },
+            { 
+                id: 'cat', 
+                name: '招財幸運貓 🐱', 
+                type: 'cat', 
+                price: 100, 
+                desc: '帶來財運的金鈴鐺喵星人！', 
+                colorGrad: ['#FFFFFF', '#E2E8F0'], 
+                outlineColor: '#475569', 
+                cheeks: '#FDA4AF' 
+            },
+            { 
+                id: 'astronaut', 
+                name: '宇宙太空人 🧑‍🚀', 
+                type: 'astronaut', 
+                price: 220, 
+                desc: '配備閃光天線與氧氣罩！', 
+                colorGrad: ['#E2E8F0', '#94A3B8'], 
+                outlineColor: '#475569', 
+                cheeks: '#FDA4AF' 
+            },
+            { 
+                id: 'ufo', 
+                name: '未來炫光飛碟 🛸', 
+                type: 'ufo', 
+                price: 350, 
+                desc: '科技感滿分，內含外星人！', 
+                colorGrad: ['#34D399', '#064E3B'], 
+                outlineColor: '#022C22', 
+                cheeks: '#6EE7B7' 
+            }
+        ];
+
+        // 登入本機快取與防線
+        function loginLocally(username, password = "") {
+            window.gameProgress.currentLocalUsername = username;
+            window.gameProgress.currentLocalPassword = password;
+            const storageKey = `happyjump_save_local_${username}`;
+            
+            try {
+                const cached = localStorage.getItem(storageKey);
+                if (cached) {
+                    const localData = JSON.parse(cached);
+                    window.gameProgress.highScore = localData.highScore || 0;
+                    window.gameProgress.totalCoins = localData.totalCoins || 0;
+                    window.gameProgress.ownedSkins = localData.ownedSkins || ['classic'];
+                    window.gameProgress.activeSkinId = localData.activeSkinId || 'classic';
+                } else {
+                    window.gameProgress.highScore = 0;
+                    window.gameProgress.totalCoins = 0;
+                    window.gameProgress.ownedSkins = ['classic'];
+                    window.gameProgress.activeSkinId = 'classic';
+                }
+            } catch (e) {
+                console.warn("讀取本機快取錯誤: ", e);
+            }
+
+            document.getElementById('high-score-val').innerText = `${window.gameProgress.highScore} m`;
+            document.getElementById('start-total-coins').innerText = window.gameProgress.totalCoins;
+            document.getElementById('player-name-tag').innerText = username === "Guest" ? "本機訪客 👤" : `玩家: ${username} 🎮`;
+            
+            updateHeroPreview();
+            
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            document.getElementById('start-screen').classList.add('flex');
+            gameState = 'start';
+            showToast("🎮 已成功載入個人進度！");
+        }
+
+        // 保存玩家資料的通用統一呼叫點 (實時對接 Google GAS 與 LocalStorage)
+        async function saveGameData() {
+            const localData = {
+                highScore: window.gameProgress.highScore,
+                totalCoins: window.gameProgress.totalCoins,
+                ownedSkins: window.gameProgress.ownedSkins,
+                activeSkinId: window.gameProgress.activeSkinId,
+                username: window.gameProgress.currentLocalUsername,
+                updatedAt: new Date().toISOString()
+            };
+
+            // 1. 先安全鎖定於本機 LocalStorage
+            const storageKey = `happyjump_save_local_${window.gameProgress.currentLocalUsername}`;
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(localData));
+            } catch (e) {
+                console.warn("本機快取寫入失敗: ", e);
+            }
+
+            // 2. 如果設定了 GAS 且非訪客，嘗試同步上傳至 Google 試算表
+            if (GAS_URL && window.gameProgress.currentLocalUsername !== "Guest") {
+                const cloudSync = document.getElementById('cloud-sync-status');
+                cloudSync.classList.remove('opacity-0');
+                cloudSync.classList.add('opacity-100');
+                setTimeout(() => cloudSync.classList.add('opacity-0'), 1500);
+
+                const payload = {
+                    action: "sync",
+                    username: window.gameProgress.currentLocalUsername,
+                    password: window.gameProgress.currentLocalPassword,
+                    highScore: window.gameProgress.highScore,
+                    totalCoins: window.gameProgress.totalCoins,
+                    ownedSkins: window.gameProgress.ownedSkins,
+                    activeSkinId: window.gameProgress.activeSkinId
+                };
+
+                try {
+                    // text/plain 能完美規避 GAS 與部分環境的 CORS 複雜 Preflight OPTIONS 握手，超高穩定度！
+                    const res = await fetch(GAS_URL, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(payload)
+                    });
+                    const resJson = await res.json();
+                    if (!resJson.success) {
+                        console.warn("同步失敗: ", resJson.message);
+                    }
+                } catch (err) {
+                    console.warn("同步試算表連線中斷，已先儲存於本機: ", err);
+                }
+            }
+        }
+
+        // 畫布配置
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GAME_WIDTH = 480;
+        const GAME_HEIGHT = 800;
+
+        let gameState = 'login'; 
+        let score = 0;
+        let coinsEarnedThisRun = 0;
+        let cameraY = 0; 
+        let particles = [];
+        let platforms = [];
+        let items = [];
+        let scorePopups = [];
+
+        // 輸入
+        const keys = { Left: false, Right: false };
+        let pointerX = null; 
+
+        // 星星背景數據
+        let backgroundStars = [];
+        for (let i = 0; i < 40; i++) {
+            backgroundStars.push({
+                x: Math.random() * GAME_WIDTH,
+                y: Math.random() * GAME_HEIGHT,
+                size: 0.8 + Math.random() * 1.5,
+                twinkleSpeed: 0.02 + Math.random() * 0.05,
+                phase: Math.random() * Math.PI
+            });
+        }
+
+        // --- 玩家物理物件 ---
+        const player = {
+            x: GAME_WIDTH / 2,
+            y: 550,
+            width: 50,
+            height: 50,
+            vx: 0,
+            vy: 0,
+            gravity: 0.38,
+            jumpStrength: -11.5,
+            balloonTimer: 0,
+
+            reset() {
+                this.x = GAME_WIDTH / 2;
+                this.y = 550;
+                this.vx = 0;
+                this.vy = this.jumpStrength; 
+                this.balloonTimer = 0;
+            },
+
+            update() {
+                if (this.balloonTimer > 0) {
+                    this.balloonTimer--;
+                    this.vy = -6.5;
+                    if (Math.random() < 0.22) {
+                        createParticle(this.x + (Math.random() * 20 - 10), this.y + 25, 'rgba(56, 189, 248, 0.7)', 1);
+                    }
+                    if (Math.random() < 0.12) {
+                        createParticle(this.x + (Math.random() * 20 - 10), this.y + 30, 'rgba(255, 255, 255, 0.8)', 1, 3);
+                    }
+                } else {
+                    this.vy += this.gravity;
+                }
+
+                if (pointerX !== null) {
+                    const diff = pointerX - this.x;
+                    this.vx = diff * 0.18; 
+                    if (this.vx > 8.5) this.vx = 8.5;
+                    if (this.vx < -8.5) this.vx = -8.5;
+                } else {
+                    if (keys.Left) {
+                        this.vx = -7.5;
+                    } else if (keys.Right) {
+                        this.vx = 7.5;
+                    } else {
+                        this.vx *= 0.82; 
+                    }
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < -this.width / 2) {
+                    this.x = GAME_WIDTH + this.width / 2;
+                } else if (this.x > GAME_WIDTH + this.width / 2) {
+                    this.x = -this.width / 2;
+                }
+            },
+
+            draw() {
+                ctx.save();
+                
+                let stretchX = 1;
+                let stretchY = 1;
+                if (this.balloonTimer > 0) {
+                    stretchX = 1 + Math.sin(Date.now() / 80) * 0.04;
+                    stretchY = 1.05;
+                } else if (this.vy < 0) {
+                    stretchY = 1 + Math.min(Math.abs(this.vy) * 0.022, 0.24);
+                    stretchX = 1 - Math.min(Math.abs(this.vy) * 0.012, 0.12);
+                } else {
+                    stretchY = 1 - Math.min(Math.abs(this.vy) * 0.012, 0.12);
+                    stretchX = 1 + Math.min(Math.abs(this.vy) * 0.012, 0.12);
+                }
+
+                ctx.translate(this.x, this.y);
+                ctx.scale(stretchX, stretchY);
+
+                const skin = SKINS.find(s => s.id === window.gameProgress.activeSkinId) || SKINS[0];
+                
+                // 氣球升空牽引繩
+                if (this.balloonTimer > 0) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.quadraticCurveTo(8, -25, -2, -50);
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 1.8;
+                    ctx.stroke();
+
+                    ctx.translate(-2, -65);
+                    ctx.fillStyle = '#F43F5E';
+                    ctx.beginPath();
+                    ctx.moveTo(0, 6);
+                    ctx.bezierCurveTo(-15, -12, -22, 2, 0, 18);
+                    ctx.bezierCurveTo(22, 2, 15, -12, 0, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(-6, -1, 4, 2, Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                drawCharacter(ctx, skin);
+                ctx.restore();
+            }
+        };
+
+        function drawCharacter(ctx, skin) {
+            const bodyFill = ctx.createRadialGradient(0, -5, 4, 0, 5, 26);
+            bodyFill.addColorStop(0, skin.colorGrad[0]);
+            bodyFill.addColorStop(1, skin.colorGrad[1]);
+
+            if (skin.type === 'poo') {
+                ctx.beginPath();
+                ctx.moveTo(-21, 18);
+                ctx.bezierCurveTo(-21, 26, 21, 26, 21, 18);
+                ctx.bezierCurveTo(29, 18, 26, 3, 16, 3);
+                ctx.bezierCurveTo(23, 3, 17, -10, 9, -10);
+                ctx.bezierCurveTo(11, -19, 0, -23, 0, -23);
+                ctx.bezierCurveTo(0, -23, -11, -19, -9, -10);
+                ctx.bezierCurveTo(-17, -10, -23, 3, -16, 3);
+                ctx.bezierCurveTo(-29, 3, -21, 18, -21, 18);
+                ctx.closePath();
+
+                ctx.fillStyle = bodyFill;
+                ctx.fill();
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+
+                drawFace(ctx, skin);
+
+            } else if (skin.type === 'slime') {
+                ctx.beginPath();
+                ctx.moveTo(0, -24);
+                ctx.bezierCurveTo(18, -24, 26, 5, 24, 15);
+                ctx.bezierCurveTo(22, 25, -22, 25, -24, 15);
+                ctx.bezierCurveTo(-26, 5, -18, -24, 0, -24);
+                ctx.closePath();
+
+                ctx.fillStyle = bodyFill;
+                ctx.fill();
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                ctx.beginPath();
+                ctx.ellipse(10, -10, 6, 12, -Math.PI / 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = skin.colorGrad[1];
+                ctx.beginPath();
+                ctx.arc(-14, 20, 4, 0, Math.PI * 2);
+                ctx.arc(14, 20, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                drawFace(ctx, skin);
+
+            } else if (skin.type === 'cat') {
+                ctx.fillStyle = '#FDA4AF';
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 3.5;
+                
+                ctx.beginPath();
+                ctx.moveTo(-22, -10);
+                ctx.lineTo(-26, -28);
+                ctx.lineTo(-6, -18);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(22, -10);
+                ctx.lineTo(26, -28);
+                ctx.lineTo(6, -18);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(0, 0, 24, 0, Math.PI * 2);
+                ctx.fillStyle = bodyFill;
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#FDA4AF';
+                ctx.beginPath();
+                ctx.ellipse(-20, -5, 4, 8, Math.PI/4, 0, Math.PI*2);
+                ctx.ellipse(20, -5, 4, 8, -Math.PI/4, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-18, 2); ctx.lineTo(-28, 0);
+                ctx.moveTo(-18, 5); ctx.lineTo(-29, 6);
+                ctx.moveTo(18, 2); ctx.lineTo(28, 0);
+                ctx.moveTo(18, 5); ctx.lineTo(29, 6);
+                ctx.stroke();
+
+                ctx.fillStyle = '#F43F5E';
+                ctx.fillRect(-12, 18, 24, 6);
+                
+                ctx.fillStyle = '#FBBF24';
+                ctx.beginPath();
+                ctx.arc(0, 23, 7, 0, Math.PI*2);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.fillStyle = '#475569';
+                ctx.beginPath();
+                ctx.arc(0, 24, 2, 0, Math.PI*2);
+                ctx.fill();
+
+                drawFace(ctx, skin, true);
+
+            } else if (skin.type === 'astronaut') {
+                ctx.fillStyle = '#64748B';
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 3.5;
+                
+                ctx.beginPath();
+                drawRoundedRectPath(ctx, -28, -12, 8, 24, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(0, 0, 23, 0, Math.PI * 2);
+                ctx.fillStyle = bodyFill;
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, -23);
+                ctx.lineTo(0, -35);
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                const isBlink = Math.floor(Date.now() / 250) % 2 === 0;
+                ctx.fillStyle = isBlink ? '#EF4444' : '#7F1D1D';
+                ctx.beginPath();
+                ctx.arc(0, -36, 4.5, 0, Math.PI*2);
+                ctx.fill();
+
+                const visorGrad = ctx.createLinearGradient(0, -12, 0, 12);
+                visorGrad.addColorStop(0, '#0284C7');
+                visorGrad.addColorStop(1, '#0C4A6E');
+                ctx.fillStyle = visorGrad;
+                
+                ctx.beginPath();
+                drawRoundedRectPath(ctx, -16, -14, 32, 24, 10);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.beginPath();
+                ctx.ellipse(-8, -8, 6, 3, -Math.PI/6, 0, Math.PI*2);
+                ctx.fill();
+
+                drawFace(ctx, skin, false, true);
+
+            } else if (skin.type === 'ufo') {
+                const glassGrad = ctx.createLinearGradient(0, -22, 0, -2);
+                glassGrad.addColorStop(0, '#E0F2FE');
+                glassGrad.addColorStop(1, '#38BDF8');
+                ctx.fillStyle = glassGrad;
+                ctx.beginPath();
+                ctx.arc(0, -2, 18, Math.PI, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = skin.outlineColor;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                ctx.fillStyle = '#10B981';
+                ctx.beginPath();
+                ctx.arc(0, -7, 7, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(-2.5, -7, 1.8, 0, Math.PI*2);
+                ctx.arc(2.5, -7, 1.8, 0, Math.PI*2);
+                ctx.fill();
+
+                const dishGrad = ctx.createLinearGradient(-32, 0, 32, 0);
+                dishGrad.addColorStop(0, '#34D399');
+                dishGrad.addColorStop(0.5, '#059669');
+                dishGrad.addColorStop(1, '#064E3B');
+                ctx.fillStyle = dishGrad;
+                ctx.beginPath();
+                ctx.ellipse(0, 6, 32, 11, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.stroke();
+
+                const glowPulse = Math.abs(Math.sin(Date.now() / 150)) * 0.6 + 0.4;
+                ctx.fillStyle = `rgba(56, 189, 248, ${glowPulse})`;
+                ctx.beginPath();
+                ctx.ellipse(0, 16, 12, 4, 0, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.fillStyle = '#FBBF24';
+                ctx.beginPath();
+                ctx.arc(-18, 6, 2.5, 0, Math.PI*2);
+                ctx.arc(0, 8, 3, 0, Math.PI*2);
+                ctx.arc(18, 6, 2.5, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        function drawFace(ctx, skin, isCat = false, isAstronaut = false) {
+            if (isAstronaut) {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(-4, -2, 2.5, 0, Math.PI*2);
+                ctx.arc(4, -2, 2.5, 0, Math.PI*2);
+                ctx.fill();
+                return;
+            }
+
+            ctx.fillStyle = skin.cheeks;
+            ctx.beginPath();
+            ctx.ellipse(-12, 4, 4.5, 2.5, 0, 0, Math.PI * 2);
+            ctx.ellipse(12, 4, 4.5, 2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(-8, -2, 6.5, 0, Math.PI * 2);
+            ctx.arc(8, -2, 6.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            let eyeYOffset = player.vy < 0 ? -1.5 : 0.5;
+            ctx.arc(-8, -2 + eyeYOffset, 3.2, 0, Math.PI * 2);
+            ctx.arc(8, -2 + eyeYOffset, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(-9, -3.2 + eyeYOffset, 1.2, 0, Math.PI * 2);
+            ctx.arc(7, -3.2 + eyeYOffset, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2.8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            if (isCat) {
+                ctx.moveTo(-4, 5);
+                ctx.quadraticCurveTo(-2, 8, 0, 5);
+                ctx.quadraticCurveTo(2, 8, 4, 5);
+                ctx.stroke();
+            } else {
+                if (player.vy < -3.5) {
+                    ctx.arc(0, 6, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#FF5E7E';
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (player.vy > 3.5) {
+                    ctx.moveTo(-5, 8);
+                    ctx.quadraticCurveTo(0, 4, 5, 8);
+                    ctx.stroke();
+                } else {
+                    ctx.moveTo(-5, 5);
+                    ctx.quadraticCurveTo(0, 10, 5, 5);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // 平台類別設計
+        class Platform {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.width = 75;
+                this.height = 16;
+                this.type = type;
+                
+                this.vx = type === 'moving' ? (Math.random() < 0.5 ? -1.8 : 1.8) : 0;
+                this.isBroken = false;
+                this.brokenTimer = 0;
+                
+                this.decorations = [];
+                if (type === 'static') {
+                    const count = Math.floor(Math.random() * 3);
+                    for (let i = 0; i < count; i++) {
+                        this.decorations.push({
+                            ox: 10 + Math.random() * (this.width - 20),
+                            h: 5 + Math.random() * 8,
+                            color: Math.random() < 0.5 ? '#34D399' : '#059669'
+                        });
+                    }
+                }
+            }
+
+            update() {
+                if (this.type === 'moving') {
+                    this.x += this.vx;
+                    if (this.x <= 0) {
+                        this.x = 0;
+                        this.vx = -this.vx;
+                    } else if (this.x + this.width >= GAME_WIDTH) {
+                        this.x = GAME_WIDTH - this.width;
+                        this.vx = -this.vx;
+                    }
+                }
+                if (this.isBroken) {
+                    this.brokenTimer++;
+                }
+            }
+
+            draw() {
+                if (this.isBroken && this.brokenTimer > 12) return;
+
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                if (this.type === 'static') {
+                    const soilGrad = ctx.createLinearGradient(0, 0, 0, this.height);
+                    soilGrad.addColorStop(0, '#78350F');
+                    soilGrad.addColorStop(1, '#451A03');
+                    ctx.fillStyle = soilGrad;
+                    
+                    ctx.beginPath();
+                    drawRoundedRectPath(ctx, 0, 4, this.width, this.height - 4, 6);
+                    ctx.fill();
+
+                    const grassGrad = ctx.createLinearGradient(0, 0, 0, 8);
+                    grassGrad.addColorStop(0, '#10B981');
+                    grassGrad.addColorStop(1, '#047857');
+                    ctx.fillStyle = grassGrad;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, 8);
+                    ctx.lineTo(0, 6);
+                    ctx.quadraticCurveTo(0, 0, 6, 0);
+                    ctx.lineTo(this.width - 6, 0);
+                    ctx.quadraticCurveTo(this.width, 0, this.width, 6);
+                    ctx.lineTo(this.width, 8);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    this.decorations.forEach(d => {
+                        ctx.fillStyle = d.color;
+                        ctx.beginPath();
+                        ctx.moveTo(d.ox, 0);
+                        ctx.lineTo(d.ox + 3, -d.h);
+                        ctx.lineTo(d.ox + 6, 0);
+                        ctx.fill();
+                    });
+
+                } else if (this.type === 'moving') {
+                    const platGrad = ctx.createLinearGradient(0, 0, 0, this.height);
+                    platGrad.addColorStop(0, '#0284C7');
+                    platGrad.addColorStop(1, '#0C4A6E');
+                    ctx.fillStyle = platGrad;
+                    
+                    ctx.beginPath();
+                    drawRoundedRectPath(ctx, 0, 0, this.width, this.height, 8);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#38BDF8';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    const pulse = Math.abs(Math.sin(Date.now() / 200)) * 0.5 + 0.5;
+                    ctx.fillStyle = `rgba(56, 189, 248, ${pulse})`;
+                    ctx.beginPath();
+                    ctx.arc(this.width / 2, this.height / 2, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else if (this.type === 'break') {
+                    if (this.isBroken) {
+                        ctx.fillStyle = '#D97706';
+                        const offset = this.brokenTimer * 1.8;
+                        ctx.save();
+                        ctx.translate(this.width/4 - offset, offset);
+                        ctx.rotate(-this.brokenTimer * 0.05);
+                        ctx.fillRect(-this.width/4, -this.height/2, this.width/2, this.height);
+                        ctx.restore();
+
+                        ctx.save();
+                        ctx.translate(this.width*0.75 + offset, offset);
+                        ctx.rotate(this.brokenTimer * 0.05);
+                        ctx.fillRect(-this.width/4, -this.height/2, this.width/2, this.height);
+                        ctx.restore();
+                    } else {
+                        const breakGrad = ctx.createLinearGradient(0, 0, 0, this.height);
+                        breakGrad.addColorStop(0, '#F59E0B');
+                        breakGrad.addColorStop(1, '#B45309');
+                        ctx.fillStyle = breakGrad;
+                        
+                        ctx.beginPath();
+                        drawRoundedRectPath(ctx, 0, 0, this.width, this.height, 4);
+                        ctx.fill();
+
+                        ctx.strokeStyle = '#78350F';
+                        ctx.lineWidth = 2.5;
+                        ctx.beginPath();
+                        ctx.moveTo(this.width / 2, 0);
+                        ctx.lineTo(this.width / 2 - 4, 8);
+                        ctx.lineTo(this.width / 2 + 3, this.height);
+                        ctx.stroke();
+                    }
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // 道具設計
+        class Item {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.width = 24;
+                this.height = 24;
+                this.bob = Math.random() * Math.PI * 2;
+                this.rot = 0;
+                this.active = true;
+            }
+
+            update() {
+                this.bob += 0.06;
+                if (this.type === 'coin') {
+                    this.rot += 0.08;
+                }
+            }
+
+            draw() {
+                if (!this.active) return;
+
+                ctx.save();
+                const bobOffset = Math.sin(this.bob) * 5;
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2 + bobOffset);
+
+                if (this.type === 'coin') {
+                    ctx.scale(Math.cos(this.rot), 1);
+                    const coinGrad = ctx.createRadialGradient(-2, -2, 1, 0, 0, 11);
+                    coinGrad.addColorStop(0, '#FCD34D');
+                    coinGrad.addColorStop(1, '#D97706');
+                    ctx.fillStyle = coinGrad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#92400E';
+                    ctx.lineWidth = 1.8;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (this.type === 'spring') {
+                    ctx.restore();
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    
+                    ctx.fillStyle = '#64748B';
+                    ctx.fillRect(0, 10, 24, 4); 
+                    
+                    ctx.fillStyle = '#EF4444';
+                    ctx.beginPath();
+                    ctx.ellipse(12, 6, 9, 3.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#E2E8F0';
+                    ctx.beginPath();
+                    ctx.ellipse(12, 1, 9, 3.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.type === 'balloon') {
+                    ctx.scale(1.1, 1.1);
+                    ctx.fillStyle = '#EC4899';
+                    ctx.beginPath();
+                    ctx.moveTo(0, 3);
+                    ctx.bezierCurveTo(-11, -11, -17, 0, 0, 12);
+                    ctx.bezierCurveTo(17, 0, 11, -11, 0, 3);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(-4, -1, 3, 1.5, Math.PI/4, 0, Math.PI*2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // 粒子與飄字特效
+        class Particle {
+            constructor(x, y, color, size, vx, vy, decay = 0.02) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = size;
+                this.vx = vx;
+                this.vy = vy;
+                this.alpha = 1;
+                this.decay = decay;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createParticle(x, y, color = '#FFF', type = 1, force = 3) {
+            const count = type === 3 ? 15 : (type === 2 ? 10 : 6);
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.8 + Math.random() * force;
+                const vx = Math.cos(angle) * speed;
+                const vy = Math.sin(angle) * speed;
+                const size = type === 3 ? (1.5 + Math.random() * 2.5) : (2 + Math.random() * 4);
+                
+                let decay = 0.015 + Math.random() * 0.02;
+                if (type === 3) decay = 0.01 + Math.random() * 0.015;
+
+                particles.push(new Particle(x, y, color, size, vx, vy, decay));
+            }
+        }
+
+        class ScorePopup {
+            constructor(x, y, text, color = '#FFF') {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.alpha = 1.0;
+                this.vy = -1.5;
+            }
+            update() {
+                this.y += this.vy;
+                this.alpha -= 0.02;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 18px Fredoka';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 4;
+                ctx.strokeText(this.text, this.x, this.y);
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        function getSkyGradients() {
+            const alt = Math.max(0, Math.floor(-cameraY));
+            const grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+
+            if (alt < 1500) {
+                const ratio = alt / 1500;
+                grad.addColorStop(0, blendColors('#0F172A', '#1E293B', ratio));
+                grad.addColorStop(1, blendColors('#1E293B', '#0F172A', ratio));
+            } else if (alt < 4000) {
+                const ratio = (alt - 1500) / 2500;
+                grad.addColorStop(0, blendColors('#1E293B', '#311B92', ratio));
+                grad.addColorStop(1, blendColors('#0F172A', '#1A0C2E', ratio));
+            } else {
+                const ratio = Math.min(1, (alt - 4000) / 4000);
+                grad.addColorStop(0, blendColors('#311B92', '#05020D', ratio));
+                grad.addColorStop(1, blendColors('#1A0C2E', '#010005', ratio));
+            }
+            return grad;
+        }
+
+        function blendColors(c1, c2, r) {
+            const parse = c => {
+                if (c.startsWith('#')) {
+                    if (c.length === 4) return [parseInt(c[1]+c[1],16), parseInt(c[2]+c[2],16), parseInt(c[3]+c[3],16)];
+                    return [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
+                }
+                return [255,255,255];
+            };
+            const [r1, g1, b1] = parse(c1);
+            const [r2, g2, b2] = parse(c2);
+            const rF = Math.round(r1 + (r2 - r1) * r);
+            const gF = Math.round(g1 + (g2 - g1) * r);
+            const bF = Math.round(b1 + (b2 - b1) * r);
+            return `rgb(${rF},${gF},${bF})`;
+        }
+
+        function initMap() {
+            platforms = [];
+            items = [];
+            particles = [];
+            scorePopups = [];
+
+            const startPlat = new Platform(GAME_WIDTH / 2 - 70, 680, 'static');
+            startPlat.width = 140;
+            platforms.push(startPlat);
+
+            let curY = 560;
+            while (curY > -GAME_HEIGHT) {
+                generatePlatformAt(curY);
+                curY -= 60 + Math.random() * 45;
+            }
+        }
+
+        function generatePlatformAt(y) {
+            const alt = Math.max(0, Math.floor(-cameraY));
+            const pool = ['static', 'static', 'moving'];
+            
+            if (alt > 1000) pool.push('break');
+            if (alt > 2200) pool.push('break', 'moving');
+            if (alt > 4000) pool.push('break', 'break'); 
+
+            const type = pool[Math.floor(Math.random() * pool.length)];
+            const pWidth = 75;
+            const x = Math.random() * (GAME_WIDTH - pWidth);
+            const plat = new Platform(x, y, type);
+            platforms.push(plat);
+
+            if (type !== 'break') {
+                const rand = Math.random();
+                if (rand < 0.20) {
+                    items.push(new Item(x + pWidth/2 - 12, y - 28, 'coin'));
+                } else if (rand < 0.23) {
+                    items.push(new Item(x + pWidth/2 - 12, y - 15, 'spring'));
+                } else if (rand < 0.25) {
+                    items.push(new Item(x + pWidth/2 - 12, y - 30, 'balloon'));
+                }
+            }
+        }
+
+        function manageMapGenerator() {
+            platforms = platforms.filter(p => p.y < cameraY + GAME_HEIGHT + 100);
+            items = items.filter(i => i.y < cameraY + GAME_HEIGHT + 100);
+
+            let highestY = GAME_HEIGHT;
+            platforms.forEach(p => {
+                if (p.y < highestY) highestY = p.y;
+            });
+
+            while (highestY > cameraY - GAME_HEIGHT) {
+                highestY -= 60 + Math.random() * 45;
+                generatePlatformAt(highestY);
+            }
+        }
+
+        function checkCollisions() {
+            if (player.vy > 0 && player.balloonTimer === 0) {
+                platforms.forEach(p => {
+                    if (p.isBroken && p.brokenTimer > 2) return;
+
+                    if (player.x + player.width/3.5 > p.x && 
+                        player.x - player.width/3.5 < p.x + p.width) {
+                        
+                        if (player.y + player.height/2 >= p.y && 
+                            player.y + player.height/2 <= p.y + p.height + 7) {
+                            
+                            if (p.type === 'break') {
+                                sounds.playJump();
+                                sounds.playBreak();
+                                player.vy = player.jumpStrength; // 讓玩家可以藉力彈跳一次！
+                                p.isBroken = true; // 隨即將黃色平台設為碎裂狀態，向下掉落
+                                createParticle(p.x + p.width/2, p.y + 4, '#F59E0B', 2, 4);
+                                const skin = SKINS.find(s => s.id === window.gameProgress.activeSkinId);
+                                const pColor = skin ? skin.colorGrad[0] : '#38BDF8';
+                                createParticle(player.x, player.y + player.height/2, pColor, 1, 3.5);
+                            } else {
+                                sounds.playJump();
+                                player.vy = player.jumpStrength;
+                                const skin = SKINS.find(s => s.id === window.gameProgress.activeSkinId);
+                                const pColor = skin ? skin.colorGrad[0] : '#38BDF8';
+                                createParticle(player.x, player.y + player.height/2, pColor, 1, 3.5);
+                            }
+                        }
+                    }
+                });
+            }
+
+            items.forEach(item => {
+                if (!item.active) return;
+
+                if (player.x + player.width/2.2 > item.x &&
+                    player.x - player.width/2.2 < item.x + item.width &&
+                    player.y + player.height/2 > item.y &&
+                    player.y - player.height/2 < item.y + item.height) {
+                    
+                    item.active = false;
+
+                    if (item.type === 'coin') {
+                        sounds.playCoin();
+                        coinsEarnedThisRun += 3;
+                        window.gameProgress.totalCoins += 3;
+                        
+                        document.getElementById('hud-coins').innerText = coinsEarnedThisRun;
+                        
+                        createParticle(item.x + 12, item.y + 12, '#FBBF24', 3, 5);
+                        scorePopups.push(new ScorePopup(item.x + 12, item.y, '+3', '#FBBF24'));
+                    } else if (item.type === 'spring') {
+                        sounds.playSpring();
+                        player.vy = player.jumpStrength * 1.8;
+                        createParticle(item.x + 12, item.y + 12, '#EF4444', 3, 6);
+                        scorePopups.push(new ScorePopup(item.x + 12, item.y, 'MEGA JUMP!', '#EF4444'));
+                    } else if (item.type === 'balloon') {
+                        sounds.playBalloon();
+                        player.balloonTimer = 240; 
+                        createParticle(item.x + 12, item.y + 12, '#EC4899', 3, 6);
+                        scorePopups.push(new ScorePopup(item.x + 12, item.y, 'BREEZY UP!', '#EC4899'));
+                    }
+                }
+            });
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+
+            player.update();
+            platforms.forEach(p => p.update());
+            items.forEach(i => i.update());
+            
+            particles.forEach(p => p.update());
+            particles = particles.filter(p => p.alpha > 0);
+
+            scorePopups.forEach(sp => sp.update());
+            scorePopups = scorePopups.filter(sp => sp.alpha > 0);
+
+            checkCollisions();
+
+            const targetCamY = player.y - GAME_HEIGHT / 2;
+            if (targetCamY < cameraY) {
+                cameraY += (targetCamY - cameraY) * 0.12; 
+            }
+
+            const curScore = Math.max(0, Math.floor(-cameraY));
+            if (curScore > score) {
+                if (window.gameProgress.highScore > 0 && score <= window.gameProgress.highScore && curScore > window.gameProgress.highScore) {
+                    scorePopups.push(new ScorePopup(player.x, player.y - 30, 'NEW BEST!', '#F43F5E'));
+                }
+                score = curScore;
+                document.getElementById('hud-score').innerText = score;
+            }
+
+            manageMapGenerator();
+
+            if (player.y > cameraY + GAME_HEIGHT + 100) {
+                endGame();
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = getSkyGradients();
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            const alt = Math.max(0, Math.floor(-cameraY));
+            if (alt > 1500) {
+                ctx.save();
+                backgroundStars.forEach(star => {
+                    star.phase += star.twinkleSpeed;
+                    const alpha = 0.3 + Math.abs(Math.sin(star.phase)) * 0.7;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(star.x, (star.y - cameraY * 0.05) % GAME_HEIGHT, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.restore();
+            }
+
+            ctx.save();
+            ctx.translate(0, -cameraY);
+
+            if (alt < 4000) {
+                drawParallaxClouds();
+            }
+
+            platforms.forEach(p => p.draw());
+            items.forEach(i => i.draw());
+            player.draw();
+            particles.forEach(p => p.draw());
+            scorePopups.forEach(sp => sp.draw());
+
+            ctx.restore();
+        }
+
+        function drawParallaxClouds() {
+            const startCloudY = Math.floor(cameraY / 350) * 350 - 350;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            
+            for (let y = startCloudY; y < cameraY + GAME_HEIGHT + 350; y += 350) {
+                const x1 = (Math.abs(Math.sin(y)) * 250) + (cameraY * 0.1) % GAME_WIDTH;
+                ctx.beginPath();
+                ctx.arc(x1, y, 26, 0, Math.PI * 2);
+                ctx.arc(x1 + 22, y - 8, 32, 0, Math.PI * 2);
+                ctx.arc(x1 + 44, y, 26, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function resizeCanvas() {
+            canvas.width = GAME_WIDTH;
+            canvas.height = GAME_HEIGHT;
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('keydown', e => {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.Left = true;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.Right = true;
+            });
+
+            window.addEventListener('keyup', e => {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.Left = false;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.Right = false;
+            });
+
+            const handleMove = e => {
+                if (gameState !== 'playing') return;
+                const rect = canvas.getBoundingClientRect();
+                let clientX = 0;
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                } else {
+                    clientX = e.clientX;
+                }
+                const relativeX = ((clientX - rect.left) / rect.width) * GAME_WIDTH;
+                pointerX = relativeX;
+            };
+
+            const handleEnd = () => {
+                pointerX = null;
+            };
+
+            canvas.addEventListener('touchstart', e => {
+                sounds.init();
+                handleMove(e);
+            }, { passive: true });
+            canvas.addEventListener('touchmove', handleMove, { passive: true });
+            canvas.addEventListener('touchend', handleEnd, { passive: true });
+
+            canvas.addEventListener('mousedown', e => {
+                sounds.init();
+                handleMove(e);
+            });
+            canvas.addEventListener('mousemove', e => {
+                if (e.buttons > 0) handleMove(e);
+            });
+            canvas.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('mouseleave', handleEnd);
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            document.getElementById('pause-screen').classList.add('hidden');
+            
+            const hud = document.getElementById('hud');
+            hud.classList.remove('-translate-y-full', 'opacity-0');
+
+            score = 0;
+            coinsEarnedThisRun = 0;
+            cameraY = 300; 
+            
+            document.getElementById('hud-score').innerText = '0';
+            document.getElementById('hud-coins').innerText = '0';
+
+            player.reset();
+            initMap();
+
+            gameState = 'playing';
+            sounds.playJump();
+        }
+
+        function endGame() {
+            gameState = 'gameover';
+            sounds.playGameOver();
+
+            document.getElementById('hud').classList.add('-translate-y-full', 'opacity-0');
+
+            const newBestBadge = document.getElementById('new-best-badge');
+            if (score > window.gameProgress.highScore) {
+                window.gameProgress.highScore = score;
+                newBestBadge.classList.remove('hidden');
+            } else {
+                newBestBadge.classList.add('hidden');
+            }
+
+            // 落地死亡失敗，秒速結算並同步雲端 (若為 Guest 則只存本機)
+            saveGameData();
+
+            document.getElementById('go-score').innerText = score;
+            document.getElementById('go-coins-earned').innerText = coinsEarnedThisRun;
+            document.getElementById('go-high-score').innerText = window.gameProgress.highScore;
+
+            setTimeout(() => {
+                document.getElementById('gameover-screen').classList.remove('hidden');
+                document.getElementById('gameover-screen').classList.add('flex');
+            }, 500);
+        }
+
+        function togglePause() {
+            if (gameState === 'playing') {
+                gameState = 'paused';
+                document.getElementById('pause-screen').classList.remove('hidden');
+                document.getElementById('pause-screen').classList.add('flex');
+            } else if (gameState === 'paused') {
+                gameState = 'playing';
+                document.getElementById('pause-screen').classList.add('hidden');
+                document.getElementById('pause-screen').classList.remove('flex');
+                sounds.init();
+            }
+        }
+
+        function goHome() {
+            gameState = 'start';
+            document.getElementById('high-score-val').innerText = `${window.gameProgress.highScore} m`;
+            document.getElementById('start-total-coins').innerText = window.gameProgress.totalCoins;
+
+            document.getElementById('hud').classList.add('-translate-y-full', 'opacity-0');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.remove('flex');
+            document.getElementById('pause-screen').classList.add('hidden');
+            document.getElementById('pause-screen').classList.remove('flex');
+            document.getElementById('start-screen').classList.remove('hidden');
+            updateHeroPreview();
+        }
+
+        function updateHeroPreview() {
+            const container = document.getElementById('hero-preview-container');
+            const skin = SKINS.find(s => s.id === window.gameProgress.activeSkinId) || SKINS[0];
+            container.innerHTML = getCharacterSvgPreview(skin);
+        }
+
+        function getCharacterSvgPreview(skin) {
+            if (skin.type === 'poo') {
+                return `
+                    <svg viewBox="0 0 100 100" class="w-28 h-28 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)]">
+                        <defs>
+                            <radialGradient id="prev-poo-${skin.id}" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="${skin.colorGrad[0]}" />
+                                <stop offset="100%" stop-color="${skin.colorGrad[1]}" />
+                            </radialGradient>
+                        </defs>
+                        <path d="M50,15 C55,15 58,22 55,27 C63,25 72,32 72,42 C82,42 85,55 82,65 C88,68 88,85 75,85 C60,85 40,85 25,85 C12,85 12,68 18,65 C15,55 18,42 28,42 C28,32 37,25 45,27 C42,22 45,15 50,15 Z" fill="url(#prev-poo-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <circle cx="40" cy="50" r="7" fill="white"/>
+                        <circle cx="40" cy="50" r="3.5" fill="black"/>
+                        <circle cx="38" cy="48" r="1.5" fill="white"/>
+                        <circle cx="60" cy="50" r="7" fill="white"/>
+                        <circle cx="60" cy="50" r="3.5" fill="black"/>
+                        <circle cx="58" cy="48" r="1.5" fill="white"/>
+                        <ellipse cx="32" cy="56" rx="5" ry="2.5" fill="${skin.cheeks}"/>
+                        <ellipse cx="68" cy="56" rx="5" ry="2.5" fill="${skin.cheeks}"/>
+                        <path d="M44,58 Q50,65 56,58" stroke="black" stroke-width="3" fill="none" stroke-linecap="round"/>
+                    </svg>
+                `;
+            } else if (skin.type === 'slime') {
+                return `
+                    <svg viewBox="0 0 100 100" class="w-28 h-28 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)]">
+                        <defs>
+                            <radialGradient id="prev-slime-${skin.id}" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="${skin.colorGrad[0]}" />
+                                <stop offset="100%" stop-color="${skin.colorGrad[1]}" />
+                            </radialGradient>
+                        </defs>
+                        <path d="M50,15 C72,15 82,50 80,65 C78,80 22,80 20,65 C18,50 28,15 50,15 Z" fill="url(#prev-slime-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <ellipse cx="62" cy="35" rx="8" ry="15" fill="white" opacity="0.3" transform="rotate(-30, 62, 35)"/>
+                        <circle cx="40" cy="52" r="7" fill="white"/>
+                        <circle cx="40" cy="52" r="3.5" fill="black"/>
+                        <circle cx="60" cy="52" r="7" fill="white"/>
+                        <circle cx="60" cy="52" r="3.5" fill="black"/>
+                        <ellipse cx="32" cy="58" rx="5" ry="2.5" fill="${skin.cheeks}"/>
+                        <ellipse cx="68" cy="58" rx="5" ry="2.5" fill="${skin.cheeks}"/>
+                        <path d="M44,60 Q50,67 56,60" stroke="black" stroke-width="3" fill="none" stroke-linecap="round"/>
+                    </svg>
+                `;
+            } else if (skin.type === 'cat') {
+                return `
+                    <svg viewBox="0 0 100 100" class="w-28 h-28 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)]">
+                        <defs>
+                            <radialGradient id="prev-cat-${skin.id}" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="${skin.colorGrad[0]}" />
+                                <stop offset="100%" stop-color="${skin.colorGrad[1]}" />
+                            </radialGradient>
+                        </defs>
+                        <polygon points="20,40 12,12 40,26" fill="#FDA4AF" stroke="${skin.outlineColor}" stroke-width="4" stroke-linejoin="round"/>
+                        <polygon points="80,40 88,12 60,26" fill="#FDA4AF" stroke="${skin.outlineColor}" stroke-width="4" stroke-linejoin="round"/>
+                        <circle cx="50" cy="50" r="32" fill="url(#prev-cat-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <line x1="25" y1="52" x2="12" y2="49" stroke="${skin.outlineColor}" stroke-width="3"/>
+                        <line x1="25" y1="56" x2="10" y2="58" stroke="${skin.outlineColor}" stroke-width="3"/>
+                        <line x1="75" y1="52" x2="88" y2="49" stroke="${skin.outlineColor}" stroke-width="3"/>
+                        <line x1="75" y1="56" x2="90" y2="58" stroke="${skin.outlineColor}" stroke-width="3"/>
+                        <circle cx="38" cy="48" r="7" fill="white"/>
+                        <circle cx="38" cy="48" r="3.5" fill="black"/>
+                        <circle cx="62" cy="48" r="7" fill="white"/>
+                        <circle cx="62" cy="48" r="3.5" fill="black"/>
+                        <ellipse cx="30" cy="54" rx="5" ry="2.5" fill="${skin.cheeks}"/>
+                        <ellipse cx="70" cy="54" rx="5" ry="2.5" fill="${skin.cheeks}"/>
+                        <path d="M45,55 Q48,58 50,55 Q52,58 55,55" stroke="black" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <rect x="34" y="76" width="32" height="8" fill="#F43F5E" stroke="${skin.outlineColor}" stroke-width="2" rx="3"/>
+                        <circle cx="50" cy="83" r="9" fill="#FBBF24" stroke="${skin.outlineColor}" stroke-width="3"/>
+                        <circle cx="50" cy="84" r="2.5" fill="#475569"/>
+                    </svg>
+                `;
+            } else if (skin.type === 'astronaut') {
+                return `
+                    <svg viewBox="0 0 100 100" class="w-28 h-28 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)]">
+                        <defs>
+                            <radialGradient id="prev-astro-${skin.id}" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="${skin.colorGrad[0]}" />
+                                <stop offset="100%" stop-color="${skin.colorGrad[1]}" />
+                            </radialGradient>
+                            <linearGradient id="prev-visor-${skin.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#0284C7"/>
+                                <stop offset="100%" stop-color="#0C4A6E"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="12" y="32" width="12" height="36" fill="#64748B" stroke="${skin.outlineColor}" stroke-width="4" rx="6"/>
+                        <line x1="50" y1="18" x2="50" y2="8" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <circle cx="50" cy="6" r="6" fill="#EF4444"/>
+                        <circle cx="50" cy="50" r="30" fill="url(#prev-astro-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <rect x="28" y="32" width="44" height="32" fill="url(#prev-visor-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4" rx="14"/>
+                        <ellipse cx="38" cy="40" rx="8" ry="4" fill="white" opacity="0.3" transform="rotate(-20, 38, 40)"/>
+                        <circle cx="44" cy="48" r="3" fill="white"/>
+                        <circle cx="56" cy="48" r="3" fill="white"/>
+                    </svg>
+                `;
+            } else if (skin.type === 'ufo') {
+                return `
+                    <svg viewBox="0 0 100 100" class="w-28 h-28 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)]">
+                        <defs>
+                            <linearGradient id="prev-dome-${skin.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#E0F2FE"/>
+                                <stop offset="100%" stop-color="#38BDF8"/>
+                            </linearGradient>
+                            <linearGradient id="prev-dish-${skin.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#34D399" />
+                                <stop offset="50%" stop-color="#059669" />
+                                <stop offset="100%" stop-color="#064E3B" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M50,45 A24,24 0 0,1 74,45 Z" fill="url(#prev-dome-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <circle cx="50" cy="38" r="8" fill="#10B981"/>
+                        <circle cx="47" cy="38" r="2" fill="black"/>
+                        <circle cx="53" cy="38" r="2" fill="black"/>
+                        <ellipse cx="50" cy="55" rX="42" rY="15" fill="url(#prev-dish-${skin.id})" stroke="${skin.outlineColor}" stroke-width="4"/>
+                        <circle cx="26" cy="55" r="3.5" fill="#FBBF24"/>
+                        <circle cx="50" cy="57" r="4.5" fill="#FBBF24"/>
+                        <circle cx="74" cy="55" r="3.5" fill="#FBBF24"/>
+                        <ellipse cx="50" cy="68" rx="16" ry="5" fill="#38BDF8" opacity="0.8"/>
+                    </svg>
+                `;
+            }
+        }
+
+        function renderShop() {
+            const container = document.getElementById('skin-list-container');
+            container.innerHTML = ''; 
+            document.getElementById('shop-coins-val').innerText = window.gameProgress.totalCoins;
+
+            SKINS.forEach(skin => {
+                const isOwned = window.gameProgress.ownedSkins.includes(skin.id);
+                const isActive = window.gameProgress.activeSkinId === skin.id;
+
+                const card = document.createElement('div');
+                card.className = `glass-panel p-4 rounded-2xl flex items-center justify-between border-2 ${isActive ? 'border-sky-400 active-glow' : 'border-white/10'} transition duration-300`;
+
+                const previewSvg = getCharacterSvgPreview(skin);
+
+                let buttonHtml = '';
+                if (isActive) {
+                    buttonHtml = `<span class="bg-sky-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider">配戴中</span>`;
+                } else if (isOwned) {
+                    buttonHtml = `<button class="btn-equip bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition" data-id="${skin.id}">變身</button>`;
+                } else {
+                    buttonHtml = `
+                        <button class="btn-buy bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs flex items-center gap-1 active:scale-95 transition" data-id="${skin.id}" data-price="${skin.price}">
+                            <i class="fa-solid fa-coins text-amber-950"></i> ${skin.price}
+                        </button>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="w-20 h-20 flex items-center justify-center bg-white/5 rounded-2xl relative border border-white/5 shadow-inner">
+                            ${previewSvg}
+                        </div>
+                        <div class="text-left">
+                            <h3 class="font-extrabold text-white text-base">${skin.name}</h3>
+                            <p class="text-xs text-slate-400 mt-1">${skin.desc}</p>
+                        </div>
+                    </div>
+                    <div>
+                        ${buttonHtml}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            // 綁定裝備變身按鈕事件
+            document.querySelectorAll('.btn-equip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    window.gameProgress.activeSkinId = id;
+                    sounds.playCoin();
+                    renderShop();
+                    saveGameData();
+                });
+            });
+
+            // 綁定購買按鈕事件
+            document.querySelectorAll('.btn-buy').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    const price = parseInt(btn.getAttribute('data-price'));
+
+                    if (window.gameProgress.totalCoins >= price) {
+                        window.gameProgress.totalCoins -= price;
+                        window.gameProgress.ownedSkins.push(id);
+                        window.gameProgress.activeSkinId = id;
+                        sounds.playSpring(); 
+                        renderShop();
+                        saveGameData();
+                    } else {
+                        sounds.playBreak(); 
+                        showToast("❌ 金幣餘額不足！再多飛幾次累積金幣吧！");
+                        btn.classList.add('animate-shake');
+                        setTimeout(() => btn.classList.remove('animate-shake'), 300);
+                    }
+                });
+            });
+        }
+
+        let toastTimer = null;
+        function showToast(message) {
+            const toast = document.getElementById('custom-toast');
+            const msgSpan = document.getElementById('toast-message');
+            msgSpan.innerText = message;
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // 登入或註冊分頁切換邏輯
+        let isRegisterTab = false;
+        const tabLogin = document.getElementById('tab-login');
+        const tabRegister = document.getElementById('tab-register');
+        const authBtnText = document.getElementById('auth-btn-text');
+
+        tabLogin.addEventListener('click', () => {
+            isRegisterTab = false;
+            tabLogin.className = "flex-1 pb-2 text-white font-bold text-sm border-b-2 border-sky-400 transition";
+            tabRegister.className = "flex-1 pb-2 text-slate-400 font-bold text-sm border-b-2 border-transparent hover:text-white transition";
+            authBtnText.innerText = "登入並開啟冒險";
+        });
+
+        tabRegister.addEventListener('click', () => {
+            isRegisterTab = true;
+            tabRegister.className = "flex-1 pb-2 text-white font-bold text-sm border-b-2 border-sky-400 transition";
+            tabLogin.className = "flex-1 pb-2 text-slate-400 font-bold text-sm border-b-2 border-transparent hover:text-white transition";
+            authBtnText.innerText = "註冊全新玩家";
+        });
+
+        // 綁定主 UI 按鈕事件 (標準 Script 優先執行，不依賴 Module)
+        window.onload = function() {
+            setupEventListeners();
+
+            // 遊戲主按鈕與控制調度
+            document.getElementById('btn-play').addEventListener('click', startGame);
+            document.getElementById('btn-pause').addEventListener('click', togglePause);
+            document.getElementById('btn-resume').addEventListener('click', togglePause);
+            document.getElementById('btn-restart').addEventListener('click', startGame);
+            document.getElementById('btn-restart-pause').addEventListener('click', startGame);
+            document.getElementById('btn-home').addEventListener('click', goHome);
+            document.getElementById('btn-home-pause').addEventListener('click', goHome);
+
+            // 音效開關
+            document.getElementById('btn-sound').addEventListener('click', () => {
+                sounds.muted = !sounds.muted;
+                const icon = document.getElementById('sound-icon');
+                if (sounds.muted) {
+                    icon.className = 'fa-solid fa-volume-xmark';
+                } else {
+                    icon.className = 'fa-solid fa-volume-high';
+                    sounds.playJump();
+                }
+            });
+
+            // 商店開啟與返回
+            document.getElementById('btn-shop-toggle').addEventListener('click', () => {
+                document.getElementById('shop-screen').classList.remove('hidden');
+                document.getElementById('shop-screen').classList.add('flex');
+                renderShop();
+            });
+            document.getElementById('btn-shop-back').addEventListener('click', () => {
+                document.getElementById('shop-screen').classList.remove('flex');
+                document.getElementById('shop-screen').classList.add('hidden');
+                document.getElementById('start-total-coins').innerText = window.gameProgress.totalCoins;
+                updateHeroPreview();
+            });
+
+            // 訪客按鈕：完全離線直接進入
+            document.getElementById('btn-auth-guest').addEventListener('click', () => {
+                loginLocally("Guest");
+            });
+
+            // --- GAS 齒輪設定視窗互動 ---
+            const gasModal = document.getElementById('gas-modal');
+            const gasUrlInput = document.getElementById('gas-url-input');
+            const gasStatusBadge = document.getElementById('gas-status-badge');
+
+            gasUrlInput.value = GAS_URL; // 預填已儲存的 URL
+
+            document.getElementById('btn-gas-settings').addEventListener('click', () => {
+                gasModal.classList.remove('hidden');
+                gasModal.classList.add('flex');
+                // 初始化測試一下目前的值
+                testGasConnection(false);
+            });
+
+            document.getElementById('btn-gas-close').addEventListener('click', () => {
+                gasModal.classList.add('hidden');
+                gasModal.classList.remove('flex');
+            });
+
+            // 測試 GAS 網頁連接函數
+            async function testGasConnection(showSuccessToast = true) {
+                const tempUrl = gasUrlInput.value.trim();
+                if (!tempUrl) {
+                    gasStatusBadge.innerText = "未設定/單機模式 ⚪";
+                    gasStatusBadge.className = "font-bold text-slate-400";
+                    return false;
+                }
+
+                gasStatusBadge.innerText = "測試連線中... ⏳";
+                gasStatusBadge.className = "font-bold text-sky-400 animate-pulse";
+
+                try {
+                    const res = await fetch(tempUrl, { method: 'GET', mode: 'cors' });
+                    const data = await res.json();
+                    if (data && data.status === "running") {
+                        gasStatusBadge.innerText = "連線成功 🟢";
+                        gasStatusBadge.className = "font-bold text-emerald-400";
+                        if (showSuccessToast) showToast("🟢 Google 試算表連線測試成功！已自動存檔。");
+                        return true;
+                    }
+                } catch (e) {
+                    console.error(e);
+                    gasStatusBadge.innerText = "連線失敗/CORS限制 🔴";
+                    gasStatusBadge.className = "font-bold text-rose-400";
+                    if (showSuccessToast) showToast("🔴 連線失敗，請檢查網頁應用程式 URL 是否正確，或是否允許所有人存取。");
+                    return false;
+                }
+                return false;
+            }
+
+            // 按下「測試並儲存」按鈕
+            document.getElementById('btn-gas-test').addEventListener('click', async () => {
+                const success = await testGasConnection(true);
+                // 不論成功與否，皆先記錄使用者的輸入
+                GAS_URL = gasUrlInput.value.trim();
+                localStorage.setItem('gas_web_app_url', GAS_URL);
+            });
+
+            // --- 註冊與登入提交按鈕 (GAS 雙向驗證) ---
+            document.getElementById('btn-auth-submit').addEventListener('click', async () => {
+                const usernameInput = document.getElementById('auth-username').value.trim();
+                const passwordInput = document.getElementById('auth-password').value;
+
+                if (usernameInput.length < 4) {
+                    showToast("⚠️ 玩家帳號最少需要 4 個字元！");
+                    return;
+                }
+                if (passwordInput.length < 6) {
+                    showToast("⚠️ 密碼最少需要 6 個字元！");
+                    return;
+                }
+
+                // 如果未設定 GAS URL，直接提示並自動降級為個人本機獨立模式
+                if (!GAS_URL) {
+                    showToast("ℹ️ 未設定 Google 試算表後端，已自動為您載入【本機單機檔案】！");
+                    loginLocally(usernameInput, passwordInput);
+                    return;
+                }
+
+                // 顯示讀取提示
+                showToast("⚡ 正在與 Google 試算表進行身分驗證...");
+                
+                const payload = {
+                    action: isRegisterTab ? "register" : "login",
+                    username: usernameInput,
+                    password: passwordInput
+                };
+
+                try {
+                    const response = await fetch(GAS_URL, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: { 'Content-Type': 'text/plain' }, // 使用 text/plain 以最佳相容性請求 GAS
+                        body: JSON.stringify(payload)
+                    });
+
+                    const resJson = await response.json();
+
+                    if (resJson.success) {
+                        // 驗證成功，導入雲端試算表儲存的進度
+                        const cloudData = resJson.data;
+                        
+                        // 比對本機與雲端的最優解 (避免網路不穩時本地覆蓋)
+                        const storageKey = `happyjump_save_local_${cloudData.username}`;
+                        let localBackup = null;
+                        try {
+                            const cached = localStorage.getItem(storageKey);
+                            if (cached) localBackup = JSON.parse(cached);
+                        } catch(e){}
+
+                        window.gameProgress.highScore = Math.max(cloudData.highScore || 0, localBackup?.highScore || 0);
+                        window.gameProgress.totalCoins = Math.max(cloudData.totalCoins || 0, localBackup?.totalCoins || 0);
+                        window.gameProgress.ownedSkins = Array.from(new Set([
+                            ...(cloudData.ownedSkins || ['classic']),
+                            ...(localBackup?.ownedSkins || ['classic'])
+                        ]));
+                        window.gameProgress.activeSkinId = cloudData.activeSkinId || localBackup?.activeSkinId || 'classic';
+                        
+                        // 記錄登入的身分憑證，用於每局結束時進行背景靜默同步
+                        window.gameProgress.currentLocalUsername = cloudData.username;
+                        window.gameProgress.currentLocalPassword = passwordInput;
+
+                        // 更新主選單
+                        document.getElementById('high-score-val').innerText = `${window.gameProgress.highScore} m`;
+                        document.getElementById('start-total-coins').innerText = window.gameProgress.totalCoins;
+                        document.getElementById('player-name-tag').innerText = `玩家: ${cloudData.username} ⭐`;
+                        updateHeroPreview();
+
+                        // 進入遊戲大廳
+                        document.getElementById('login-screen').classList.add('hidden');
+                        document.getElementById('start-screen').classList.remove('hidden');
+                        document.getElementById('start-screen').classList.add('flex');
+                        gameState = 'start';
+                        
+                        showToast(`☁️ 試算表連線成功！歡迎回來，${cloudData.username}！`);
+                        
+                        // 即時同步最新最優進度回試算表
+                        saveGameData();
+                    } else {
+                        // 驗證失敗 (例如密碼錯誤、帳號已存在等)
+                        showToast(resJson.message);
+                    }
+
+                } catch (err) {
+                    console.error("GAS 連線異常: ", err);
+                    showToast("🔴 試算表連接超時，已自動進入【本機單機模式】遊玩！");
+                    // 自動無縫降級本機
+                    loginLocally(usernameInput, passwordInput);
+                }
+            });
+
+            // 登出按鈕：清除憑證並重設
+            document.getElementById('btn-logout').addEventListener('click', () => {
+                window.gameProgress.highScore = 0;
+                window.gameProgress.totalCoins = 0;
+                window.gameProgress.ownedSkins = ['classic'];
+                window.gameProgress.activeSkinId = 'classic';
+                window.gameProgress.currentLocalUsername = "Guest";
+                window.gameProgress.currentLocalPassword = "";
+
+                document.getElementById('start-screen').classList.add('hidden');
+                document.getElementById('start-screen').classList.remove('flex');
+                document.getElementById('login-screen').classList.remove('hidden');
+                gameState = 'login';
+                
+                document.getElementById('auth-username').value = '';
+                document.getElementById('auth-password').value = '';
+                showToast("已安全登出！進度已保留。");
+            });
+
+            initMap();
+            loop();
+        };
+    </script>
+</body>
+</html>
